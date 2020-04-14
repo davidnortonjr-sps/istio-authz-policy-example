@@ -1,0 +1,133 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: source-redis
+  labels:
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: target-redis
+  labels:
+    istio-injection: enabled
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: target-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - image: redis
+          imagePullPolicy: IfNotPresent
+          name: redis
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: target-redis
+  labels:
+    app: redis
+spec:
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redisclient
+  namespace: source-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redisclient
+  namespace: source-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redisclient
+  template:
+    metadata:
+      labels:
+        app: redisclient
+    spec:
+      serviceAccountName: redisclient
+      containers:
+        - image: docker.io/bitnami/redis:5.0.7-debian-10-r0
+          imagePullPolicy: IfNotPresent
+          name: app
+          command:
+            - sh
+            - "-c"
+            - "sleep 9000"
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redisclient-not-allowed
+  namespace: source-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redisclient-not-allowed
+  namespace: source-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redisclient-not-allowed
+  template:
+    metadata:
+      labels:
+        app: redisclient-not-allowed
+    spec:
+      serviceAccountName: redisclient-not-allowed
+      containers:
+        - image: docker.io/bitnami/redis:5.0.7-debian-10-r0
+          imagePullPolicy: IfNotPresent
+          name: app
+          command:
+            - sh
+            - "-c"
+            - "sleep 9000"
+
+---
+
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: redis-from-redisclient
+  namespace: target-redis
+spec:
+  # when target is redis...
+  selector:
+    matchLabels:
+      app: redis
+  # allow if source is redisclient
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/source-redis/sa/redisclient"]

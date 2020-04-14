@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: source-http
+  labels:
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: target-http
+  labels:
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: httpbin
+  namespace: target-http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin
+  namespace: target-http
+  labels:
+    app: httpbin
+spec:
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8080
+  selector:
+    app: httpbin
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpbin
+  namespace: target-http
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: httpbin
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: httpbin
+        version: v1
+    spec:
+      serviceAccountName: httpbin
+      containers:
+      - image: mccutchen/go-httpbin
+        imagePullPolicy: IfNotPresent
+        name: httpbin
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: httpbin
+  namespace: target-http
+spec:
+  # when target is httpbin...
+  selector:
+    matchLabels:
+      app: httpbin
+      version: v1
+  # allow if source is sourceapp
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/source-http/sa/sourceapp"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sourceapp
+  namespace: source-http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sourceapp
+  namespace: source-http
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sourceapp
+  template:
+    metadata:
+      labels:
+        app: sourceapp
+    spec:
+      serviceAccountName: sourceapp
+      containers:
+        - image: istio/proxyv2:1.4.6
+          imagePullPolicy: IfNotPresent
+          name: app
+          command:
+            - sh
+            - "-c"
+            - "sleep 9000"
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sourceapp-not-allowed
+  namespace: source-http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sourceapp-not-allowed
+  namespace: source-http
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sourceapp-not-allowed
+  template:
+    metadata:
+      labels:
+        app: sourceapp-not-allowed
+    spec:
+      serviceAccountName: sourceapp-not-allowed
+      containers:
+        - image: istio/proxyv2:1.4.6
+          imagePullPolicy: IfNotPresent
+          name: app
+          command:
+            - sh
+            - "-c"
+            - "sleep 9000"
