@@ -60,13 +60,15 @@ spec:
   selector:
     matchLabels:
       app: httpbin
-      version: v1
-  # allow if source is sourceapp
+  # allow if source is sourceapp OR if source is anotherallowedsourceapp
   rules:
     - from:
         - source:
             principals: ["cluster.local/ns/source-http/sa/sourceapp"]
 
+    - from:
+        - source:
+            principals: ["cluster.local/ns/source-http/sa/anotherallowedsourceapp"]
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -90,6 +92,39 @@ spec:
         app: sourceapp
     spec:
       serviceAccountName: sourceapp
+      containers:
+        - image: istio/proxyv2:1.4.6
+          imagePullPolicy: IfNotPresent
+          name: app
+          command:
+            - sh
+            - "-c"
+            - "sleep 9000"
+
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: anotherallowedsourceapp
+  namespace: source-http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anotherallowedsourceapp
+  namespace: source-http
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: anotherallowedsourceapp
+  template:
+    metadata:
+      labels:
+        app: anotherallowedsourceapp
+    spec:
+      serviceAccountName: anotherallowedsourceapp
       containers:
         - image: istio/proxyv2:1.4.6
           imagePullPolicy: IfNotPresent
