@@ -13,12 +13,6 @@ metadata:
     istio-injection: enabled
 ---
 apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: httpbin
-  namespace: target-http
----
-apiVersion: v1
 kind: Service
 metadata:
   name: httpbin
@@ -50,7 +44,6 @@ spec:
         app: httpbin
         version: v1
     spec:
-      serviceAccountName: httpbin
       containers:
       - image: mccutchen/go-httpbin
         imagePullPolicy: IfNotPresent
